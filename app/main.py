@@ -1,22 +1,29 @@
-from fastapi import FastAPI
+import os
 
-app = FastAPI(
-    title="OneStoreSolution",
-    description="Multi-store retail management system",
-    version="0.1.0",
+from sqlalchemy import create_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
+
+
+DATABASE_URL = os.environ["DATABASE_URL"]
+
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
 )
 
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine,
+)
 
-@app.get("/")
-def root():
-    return {
-        "application": "OneStoreSolution",
-        "status": "running",
-    }
+Base = declarative_base()
 
 
-@app.get("/health")
-def health():
-    return {
-        "status": "healthy",
-    }
+def get_db():
+    db = SessionLocal()
+
+    try:
+        yield db
+    finally:
+        db.close()
