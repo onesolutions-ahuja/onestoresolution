@@ -1,16 +1,12 @@
-from decimal import Decimal
-from uuid import uuid4
+from datetime import date, datetime, time
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models.sale import Sale, SaleItem
-from app.models.product import Product
-from app.models.inventory import Inventory
-from app.models.store import Store
 from app.models.customer import Customer
-from app.schemas.sale import SaleCreate
+from app.models.product import Product
+from app.models.sale import Sale, SaleItem
 from app.security.dependencies import get_current_user
 
 
@@ -20,255 +16,88 @@ router = APIRouter(
 )
 
 
-def is_owner(user):
-    return getattr(user, "role_id", None) == 1
-
-
-def check_store_access(db, user, store_id):
-    if is_owner(user):
-        return True
-
-    from app.models.user_store_access import UserStoreAccess
-
-    access = db.query(UserStoreAccess).filter(
-        UserStoreAccess.user_id == user.id,
-        UserStoreAccess.store_id == store_id,
-    ).first()
-
-    return access is not None
-
-
-@router.post("/")
-def create_sale(
-    data: SaleCreate,
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
-    if not check_store_access(
-        db,
-        current_user,
-        data.store_id,
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail="You do not have access to this store",
-        )
-
-    store = db.query(Store).filter(
-        Store.id == data.store_id
-    ).first()
-
-    if not store:
-        raise HTTPException(
-            status_code=404,
-            detail="Store not found",
-        )
-
-    # ---------------------------------------------------------
-    # CUSTOMER VALIDATION
-    # ---------------------------------------------------------
-
-    if data.customer_id is not None:
-        customer = db.query(Customer).filter(
-            Customer.id == data.customer_id,
-            Customer.is_active == True,
-        ).first()
-
-        if not customer:
-            raise HTTPException(
-                status_code=404,
-                detail="Customer not found",
-            )
-
-    # ---------------------------------------------------------
-    # SALE ITEMS
-    # ---------------------------------------------------------
-
-    if not data.items:
-        raise HTTPException(
-            status_code=400,
-            detail="Sale must contain at least one item",
-        )
-
-    subtotal = Decimal("0")
-    prepared_items = []
-
-    for item in data.items:
-        product = db.query(Product).filter(
-            Product.id == item.product_id
-        ).first()
-
-        if not product:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Product {item.product_id} not found",
-            )
-
-        inventory = db.query(Inventory).filter(
-            Inventory.store_id == data.store_id,
-            Inventory.product_id == item.product_id,
-        ).first()
-
-        if not inventory:
-            raise HTTPException(
-                status_code=400,
-                detail=f"No inventory record for product {item.product_id}",
-            )
-
-        if inventory.quantity < item.quantity:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Insufficient stock for product {item.product_id}",
-            )
-
-        line_total = (
-            item.unit_price * item.quantity
-        ) - item.discount
-
-        if line_total < 0:
-            raise HTTPException(
-                status_code=400,
-                detail="Line total cannot be negative",
-            )
-
-        subtotal += line_total
-
-        prepared_items.append(
-            {
-                "product_id": item.product_id,
-                "quantity": item.quantity,
-                "unit_price": item.unit_price,
-                "discount": item.discount,
-                "line_total": line_total,
-                "inventory": inventory,
-            }
-        )
-
-    # ---------------------------------------------------------
-    # TOTALS
-    # ---------------------------------------------------------
-
-    if data.discount > subtotal:
-        raise HTTPException(
-            status_code=400,
-            detail="Discount cannot exceed subtotal",
-        )
-
-    total = subtotal - data.discount + data.tax
-
-    sale_number = f"SALE-{uuid4().hex[:12].upper()}"
-
-    # ---------------------------------------------------------
-    # CREATE SALE
-    # ---------------------------------------------------------
-
-    sale = Sale(
-        store_id=data.store_id,
-        user_id=current_user.id,
-        customer_id=data.customer_id,
-        sale_number=sale_number,
-        status="COMPLETED",
-        subtotal=subtotal,
-        discount=data.discount,
-        tax=data.tax,
-        total=total,
-        payment_method=data.payment_method.upper(),
-    )
-
-    db.add(sale)
-    db.flush()
-
-    # ---------------------------------------------------------
-    # CREATE SALE ITEMS + REDUCE INVENTORY
-    # ---------------------------------------------------------
-
-    for item in prepared_items:
-        sale_item = SaleItem(
-            sale_id=sale.id,
-            product_id=item["product_id"],
-            quantity=item["quantity"],
-            unit_price=item["unit_price"],
-            discount=item["discount"],
-            line_total=item["line_total"],
-        )
-
-        db.add(sale_item)
-
-        item["inventory"].quantity -= item["quantity"]
-
-    db.commit()
-    db.refresh(sale)
-
-    return {
-        "message": "Sale completed successfully",
-        "sale_id": sale.id,
-        "sale_number": sale.sale_number,
-        "store_id": sale.store_id,
-        "customer_id": sale.customer_id,
-        "subtotal": sale.subtotal,
-        "discount": sale.discount,
-        "tax": sale.tax,
-        "total": sale.total,
-        "payment_method": sale.payment_method,
-    }
-
-
 @router.get("/")
 def get_sales(
     store_id: int | None = None,
     customer_id: int | None = None,
+    payment_method: str | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    limit: int = Query(default=100, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
     query = db.query(Sale)
 
-    # ---------------------------------------------------------
-    # STORE ACCESS
-    # ---------------------------------------------------------
-
-    if is_owner(current_user):
-        if store_id is not None:
-            query = query.filter(
-                Sale.store_id == store_id
-            )
-
-    else:
-        from app.models.user_store_access import UserStoreAccess
-
-        stores = db.query(
-            UserStoreAccess.store_id
-        ).filter(
-            UserStoreAccess.user_id == current_user.id
-        ).all()
-
-        store_ids = [row[0] for row in stores]
-
-        if not store_ids:
-            return []
-
+    if store_id is not None:
         query = query.filter(
-            Sale.store_id.in_(store_ids)
+            Sale.store_id == store_id
         )
-
-        if store_id is not None:
-            if store_id not in store_ids:
-                raise HTTPException(
-                    status_code=403,
-                    detail="You do not have access to this store",
-                )
-
-    # ---------------------------------------------------------
-    # CUSTOMER FILTER
-    # ---------------------------------------------------------
 
     if customer_id is not None:
         query = query.filter(
             Sale.customer_id == customer_id
         )
 
-    return query.order_by(
+    if payment_method:
+        query = query.filter(
+            Sale.payment_method == payment_method.upper()
+        )
+
+    if start_date is not None:
+        start_datetime = datetime.combine(
+            start_date,
+            time.min,
+        )
+        query = query.filter(
+            Sale.created_at >= start_datetime
+        )
+
+    if end_date is not None:
+        end_datetime = datetime.combine(
+            end_date,
+            time.max,
+        )
+        query = query.filter(
+            Sale.created_at <= end_datetime
+        )
+
+    sales = query.order_by(
         Sale.created_at.desc()
-    ).all()
+    ).limit(limit).all()
+
+    results = []
+
+    for sale in sales:
+        customer = None
+
+        if sale.customer_id:
+            customer = db.query(Customer).filter(
+                Customer.id == sale.customer_id
+            ).first()
+
+        results.append(
+            {
+                "id": sale.id,
+                "sale_number": sale.sale_number,
+                "store_id": sale.store_id,
+                "customer_id": sale.customer_id,
+                "customer_name": (
+                    customer.name
+                    if customer
+                    else None
+                ),
+                "status": sale.status,
+                "subtotal": sale.subtotal,
+                "discount": sale.discount,
+                "tax": sale.tax,
+                "total": sale.total,
+                "payment_method": sale.payment_method,
+                "created_at": sale.created_at,
+            }
+        )
+
+    return results
 
 
 @router.get("/{sale_id}")
@@ -287,26 +116,55 @@ def get_sale(
             detail="Sale not found",
         )
 
-    if not check_store_access(
-        db,
-        current_user,
-        sale.store_id,
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail="You do not have access to this sale",
-        )
+    customer = None
+
+    if sale.customer_id:
+        customer = db.query(Customer).filter(
+            Customer.id == sale.customer_id
+        ).first()
 
     items = db.query(SaleItem).filter(
         SaleItem.sale_id == sale.id
     ).all()
 
+    result_items = []
+
+    for item in items:
+        product = db.query(Product).filter(
+            Product.id == item.product_id
+        ).first()
+
+        result_items.append(
+            {
+                "id": item.id,
+                "product_id": item.product_id,
+                "product_name": (
+                    product.name
+                    if product
+                    else None
+                ),
+                "quantity": item.quantity,
+                "unit_price": item.unit_price,
+                "discount": item.discount,
+                "line_total": item.line_total,
+            }
+        )
+
     return {
         "id": sale.id,
-        "store_id": sale.store_id,
-        "user_id": sale.user_id,
-        "customer_id": sale.customer_id,
         "sale_number": sale.sale_number,
+        "store_id": sale.store_id,
+        "customer_id": sale.customer_id,
+        "customer_name": (
+            customer.name
+            if customer
+            else None
+        ),
+        "customer_phone": (
+            customer.phone
+            if customer
+            else None
+        ),
         "status": sale.status,
         "subtotal": sale.subtotal,
         "discount": sale.discount,
@@ -314,79 +172,65 @@ def get_sale(
         "total": sale.total,
         "payment_method": sale.payment_method,
         "created_at": sale.created_at,
-        "items": [
-            {
-                "id": item.id,
-                "product_id": item.product_id,
-                "quantity": item.quantity,
-                "unit_price": item.unit_price,
-                "discount": item.discount,
-                "line_total": item.line_total,
-            }
-            for item in items
-        ],
+        "items": result_items,
     }
 
 
-@router.post("/{sale_id}/void")
-def void_sale(
-    sale_id: int,
+@router.get("/summary/totals")
+def sales_totals(
+    store_id: int | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    sale = db.query(Sale).filter(
-        Sale.id == sale_id
-    ).first()
+    query = db.query(Sale).filter(
+        Sale.status == "COMPLETED"
+    )
 
-    if not sale:
-        raise HTTPException(
-            status_code=404,
-            detail="Sale not found",
+    if store_id is not None:
+        query = query.filter(
+            Sale.store_id == store_id
         )
 
-    if not check_store_access(
-        db,
-        current_user,
-        sale.store_id,
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail="You do not have access to this sale",
-        )
-
-    if sale.status != "COMPLETED":
-        raise HTTPException(
-            status_code=400,
-            detail="Only completed sales can be voided",
-        )
-
-    items = db.query(SaleItem).filter(
-        SaleItem.sale_id == sale.id
-    ).all()
-
-    for item in items:
-        inventory = db.query(Inventory).filter(
-            Inventory.store_id == sale.store_id,
-            Inventory.product_id == item.product_id,
-        ).first()
-
-        if inventory:
-            inventory.quantity += item.quantity
-        else:
-            inventory = Inventory(
-                store_id=sale.store_id,
-                product_id=item.product_id,
-                quantity=item.quantity,
+    if start_date is not None:
+        query = query.filter(
+            Sale.created_at >= datetime.combine(
+                start_date,
+                time.min,
             )
-            db.add(inventory)
+        )
 
-    sale.status = "VOID"
+    if end_date is not None:
+        query = query.filter(
+            Sale.created_at <= datetime.combine(
+                end_date,
+                time.max,
+            )
+        )
 
-    db.commit()
+    sales = query.all()
+
+    total_sales = len(sales)
+
+    total_revenue = sum(
+        (sale.total for sale in sales),
+        0,
+    )
+
+    total_tax = sum(
+        (sale.tax for sale in sales),
+        0,
+    )
+
+    total_discount = sum(
+        (sale.discount for sale in sales),
+        0,
+    )
 
     return {
-        "message": "Sale voided successfully",
-        "sale_id": sale.id,
-        "sale_number": sale.sale_number,
-        "status": sale.status,
+        "total_sales": total_sales,
+        "total_revenue": total_revenue,
+        "total_tax": total_tax,
+        "total_discount": total_discount,
     }
