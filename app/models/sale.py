@@ -25,11 +25,11 @@ class Sale(Base):
         nullable=False,
     )
 
-customer_id: Mapped[int | None] = mapped_column(
-    ForeignKey("customers.id"),
-    nullable=True,
-)
-    
+    customer_id: Mapped[int | None] = mapped_column(
+        ForeignKey("customers.id"),
+        nullable=True,
+    )
+
     sale_number: Mapped[str] = mapped_column(
         String(50),
         unique=True,
