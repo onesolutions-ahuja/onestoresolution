@@ -18,6 +18,9 @@ from app.models.user import User
 from app.models.store import Store
 from app.models.role import Role
 from app.models.user_store_access import UserStoreAccess
+from app.models.category import Category
+from app.models.product import Product
+from app.models.inventory import Inventory
 
 
 config = context.config
