@@ -24,6 +24,9 @@ from app.routes.dashboard import router as dashboard_router
 from app.routes.supplier_reports import router as supplier_reports_router
 from app.routes.payment_reports import router as payment_reports_router
 from app.routes.vat import router as vat_router
+from app.routes.till import router as till_router
+from app.routes.refunds import router as refunds_router
+
 
 
 app = FastAPI(
@@ -54,6 +57,8 @@ app.include_router(dashboard_router)
 app.include_router(supplier_reports_router)
 app.include_router(payment_reports_router)
 app.include_router(vat_router)
+app.include_router(till_router)
+app.include_router(refunds_router)
 
 @app.get("/")
 def root():
