@@ -1,8 +1,11 @@
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.customer import Customer
+from app.models.sale import Sale
 from app.schemas.customer import (
     CustomerCreate,
     CustomerResponse,
@@ -49,11 +52,12 @@ def get_customers(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    return db.query(Customer).filter(
-        Customer.is_active == True
-    ).order_by(
-        Customer.name
-    ).all()
+    return (
+        db.query(Customer)
+        .filter(Customer.is_active.is_(True))
+        .order_by(Customer.name)
+        .all()
+    )
 
 
 @router.get(
@@ -65,9 +69,11 @@ def get_customer(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    customer = db.query(Customer).filter(
-        Customer.id == customer_id
-    ).first()
+    customer = (
+        db.query(Customer)
+        .filter(Customer.id == customer_id)
+        .first()
+    )
 
     if not customer:
         raise HTTPException(
@@ -88,9 +94,11 @@ def update_customer(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    customer = db.query(Customer).filter(
-        Customer.id == customer_id
-    ).first()
+    customer = (
+        db.query(Customer)
+        .filter(Customer.id == customer_id)
+        .first()
+    )
 
     if not customer:
         raise HTTPException(
@@ -117,9 +125,11 @@ def delete_customer(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    customer = db.query(Customer).filter(
-        Customer.id == customer_id
-    ).first()
+    customer = (
+        db.query(Customer)
+        .filter(Customer.id == customer_id)
+        .first()
+    )
 
     if not customer:
         raise HTTPException(
@@ -133,4 +143,102 @@ def delete_customer(
 
     return {
         "message": "Customer deactivated successfully"
+    }
+
+
+@router.get("/{customer_id}/sales")
+def get_customer_sales(
+    customer_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    customer = (
+        db.query(Customer)
+        .filter(Customer.id == customer_id)
+        .first()
+    )
+
+    if not customer:
+        raise HTTPException(
+            status_code=404,
+            detail="Customer not found",
+        )
+
+    sales = (
+        db.query(Sale)
+        .filter(Sale.customer_id == customer_id)
+        .order_by(Sale.created_at.desc())
+        .all()
+    )
+
+    return [
+        {
+            "id": sale.id,
+            "store_id": sale.store_id,
+            "user_id": sale.user_id,
+            "sale_number": sale.sale_number,
+            "status": sale.status,
+            "subtotal": sale.subtotal,
+            "discount": sale.discount,
+            "tax": sale.tax,
+            "total": sale.total,
+            "payment_method": sale.payment_method,
+            "created_at": sale.created_at,
+        }
+        for sale in sales
+    ]
+
+
+@router.get("/{customer_id}/summary")
+def get_customer_summary(
+    customer_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    customer = (
+        db.query(Customer)
+        .filter(Customer.id == customer_id)
+        .first()
+    )
+
+    if not customer:
+        raise HTTPException(
+            status_code=404,
+            detail="Customer not found",
+        )
+
+    sales = (
+        db.query(Sale)
+        .filter(
+            Sale.customer_id == customer_id,
+            Sale.status == "COMPLETED",
+        )
+        .all()
+    )
+
+    purchase_count = len(sales)
+
+    total_spend = sum(
+        (sale.total for sale in sales),
+        Decimal("0"),
+    )
+
+    average_order_value = (
+        total_spend / purchase_count
+        if purchase_count
+        else Decimal("0")
+    )
+
+    latest_purchase = max(
+        (sale.created_at for sale in sales),
+        default=None,
+    )
+
+    return {
+        "customer_id": customer.id,
+        "customer_name": customer.name,
+        "purchase_count": purchase_count,
+        "total_spend": total_spend,
+        "average_order_value": average_order_value,
+        "latest_purchase": latest_purchase,
     }
