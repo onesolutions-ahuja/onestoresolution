@@ -5,7 +5,7 @@ from app.database import get_db
 from app.models.product_supplier import ProductSupplier
 from app.models.product import Product
 from app.models.supplier import Supplier
-from app.security.auth import get_current_user
+from app.security.dependencies  import get_current_user
 from app.schemas.product_supplier import (
     ProductSupplierCreate,
     ProductSupplierUpdate,
