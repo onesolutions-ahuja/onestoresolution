@@ -1,4 +1,17 @@
+import os
+import sys
 from logging.config import fileConfig
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from alembic import context
+from sqlalchemy import engine_from_config, pool
+
+from app.database import Base
+from app.models.user import User
+from app.models.store import Store
+from app.models.role import Role
+from app.models.user_store_access import UserStoreAccess
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
