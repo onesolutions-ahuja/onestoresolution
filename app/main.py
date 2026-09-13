@@ -14,6 +14,7 @@ from app.routes.product_suppliers import router as product_suppliers_router
 from app.routes.sales import router as sales_router
 from app.routes.customers import router as customers_router
 from app.routes.returns import router as returns_router
+from app.routes.inventory import router as inventory_router
 
 app = FastAPI(
     title="OneStoreSolution",
@@ -33,6 +34,7 @@ app.include_router(product_suppliers_router)
 app.include_router(sales_router)
 app.include_router(customers_router)
 app.include_router(returns_router)
+app.include_router(inventory_router)
 
 @app.get("/")
 def root():
