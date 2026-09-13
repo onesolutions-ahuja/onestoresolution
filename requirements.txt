@@ -1,5 +1,4 @@
-Dockerfile
-requirements.txt
-app/
-    main.py
-    database.py
+fastapi
+uvicorn[standard]
+SQLAlchemy
+psycopg[binary]
