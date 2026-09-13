@@ -6,6 +6,8 @@ from app.routes.auth import router as auth_router
 from app.routes.stores import router as stores_router
 from app.routes.store_access import router as store_access_router
 from app.routes.users import router as users_router
+from app.routes.categories import router as categories_router
+from app.routes.products import router as products_router
 
 app = FastAPI(
     title="OneStoreSolution",
@@ -17,6 +19,8 @@ app.include_router(auth_router)
 app.include_router(stores_router)
 app.include_router(store_access_router)
 app.include_router(users_router)
+app.include_router(categories_router)
+app.include_router(products_router)
 
 
 @app.get("/")
