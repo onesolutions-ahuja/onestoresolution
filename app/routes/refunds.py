@@ -5,8 +5,11 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.models.inventory import Inventory
+from app.models.product import Product
 from app.models.refund import Refund
-from app.models.sale import Sale
+from app.models.sale import Sale, SaleItem
+from app.models.stock_movement import StockMovement
 from app.schemas.refund import RefundCreate
 from app.security.dependencies import get_current_user
 
@@ -34,10 +37,10 @@ def create_refund(
             detail="Sale not found",
         )
 
-    if sale.status != "COMPLETED":
+    if sale.status not in {"COMPLETED", "PARTIALLY_REFUNDED"}:
         raise HTTPException(
             status_code=400,
-            detail="Only completed sales can be refunded",
+            detail="This sale cannot be refunded",
         )
 
     refunded = db.query(
@@ -72,6 +75,48 @@ def create_refund(
 
     if data.amount == remaining:
         sale.status = "REFUNDED"
+    else:
+        sale.status = "PARTIALLY_REFUNDED"
+
+    items = db.query(SaleItem).filter(
+        SaleItem.sale_id == sale.id
+    ).all()
+
+    if len(items) == 1:
+        item = items[0]
+
+        inventory = db.query(Inventory).filter(
+            Inventory.store_id == sale.store_id,
+            Inventory.product_id == item.product_id,
+        ).first()
+
+        if not inventory:
+            inventory = Inventory(
+                store_id=sale.store_id,
+                product_id=item.product_id,
+                quantity=0,
+                minimum_quantity=0,
+                cost_price=0,
+                selling_price=item.unit_price,
+            )
+            db.add(inventory)
+            db.flush()
+
+        quantity_before = inventory.quantity
+        inventory.quantity += item.quantity
+
+        movement = StockMovement(
+            store_id=sale.store_id,
+            product_id=item.product_id,
+            user_id=current_user.id,
+            movement_type="REFUND",
+            quantity_change=item.quantity,
+            quantity_before=quantity_before,
+            quantity_after=inventory.quantity,
+            reason=f"Refund for {sale.sale_number}",
+        )
+
+        db.add(movement)
 
     db.commit()
     db.refresh(refund)
@@ -82,6 +127,7 @@ def create_refund(
         "sale_id": sale.id,
         "amount": refund.amount,
         "payment_method": refund.payment_method,
+        "status": sale.status,
         "remaining_refundable": remaining - data.amount,
     }
 
