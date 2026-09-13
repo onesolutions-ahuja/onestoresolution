@@ -16,6 +16,7 @@ from app.routes.customers import router as customers_router
 from app.routes.returns import router as returns_router
 from app.routes.inventory import router as inventory_router
 from app.routes.stock_transfers import router as stock_transfers_router
+from app.routes.stock_adjustments import router as stock_adjustments_router
 
 
 app = FastAPI(
@@ -38,6 +39,7 @@ app.include_router(customers_router)
 app.include_router(returns_router)
 app.include_router(inventory_router)
 app.include_router(stock_transfers_router)
+app.include_router(stock_adjustments_router)
 
 @app.get("/")
 def root():
