@@ -1,4 +1,5 @@
-fastapi
-uvicorn[standard]
-SQLAlchemy
-psycopg[binary]
+Dockerfile
+requirements.txt
+app/
+    main.py
+    database.py
