@@ -53,4 +53,19 @@ def get_stores(
             .all()
         )
 
-    return []
+    from app.models.user_store_access import UserStoreAccess
+
+    stores = (
+        db.query(Store)
+        .join(
+            UserStoreAccess,
+            UserStoreAccess.store_id == Store.id,
+        )
+        .filter(
+            UserStoreAccess.user_id == current_user.id,
+            Store.is_active == True,
+        )
+        .all()
+    )
+
+    return stores
