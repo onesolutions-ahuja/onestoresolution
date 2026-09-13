@@ -10,7 +10,7 @@ from app.models.product import Product
 from app.models.inventory import Inventory
 from app.models.store import Store
 from app.schemas.sale import SaleCreate
-from app.security.auth import get_current_user
+from app.security.dependencies  import get_current_user
 
 
 router = APIRouter(
