@@ -17,6 +17,9 @@ from app.routes.returns import router as returns_router
 from app.routes.inventory import router as inventory_router
 from app.routes.stock_transfers import router as stock_transfers_router
 from app.routes.stock_adjustments import router as stock_adjustments_router
+from app.routes.stock_levels import router as stock_levels_router
+from app.routes.low_stock import router as low_stock_router
+from app.routes.stock_transfer import router as stock_transfer_router
 
 
 app = FastAPI(
@@ -40,6 +43,9 @@ app.include_router(returns_router)
 app.include_router(inventory_router)
 app.include_router(stock_transfers_router)
 app.include_router(stock_adjustments_router)
+app.include_router(stock_levels_router)
+app.include_router(low_stock_router)
+app.include_router(stock_transfer_router)
 
 @app.get("/")
 def root():
