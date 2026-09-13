@@ -22,6 +22,7 @@ class SaleCreate(BaseModel):
 class SaleItemResponse(BaseModel):
     id: int
     product_id: int
+    customer_id: int | None
     quantity: int
     unit_price: Decimal
     discount: Decimal
