@@ -1,8 +1,8 @@
-from app.routes.auth import router as auth_router
 from fastapi import FastAPI
 from sqlalchemy import inspect, text
-
 from app.database import engine
+from app.routes.setup import router as setup_router
+from app.routes.auth import router as auth_router
 
 
 app = FastAPI(
@@ -12,6 +12,7 @@ app = FastAPI(
 )
 
 app.include_router(auth_router)
+app.include_router(setup_router)
 
 @app.get("/")
 def root():
@@ -19,6 +20,8 @@ def root():
         "application": "OneStoreSolution",
         "status": "running",
     }
+
+
 
 
 @app.get("/health")
