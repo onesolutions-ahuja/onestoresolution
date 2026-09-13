@@ -130,15 +130,16 @@ def create_sale(
     sale_number = f"SALE-{uuid4().hex[:12].upper()}"
 
     sale = Sale(
-        store_id=data.store_id,
-        user_id=current_user.id,
-        sale_number=sale_number,
-        status="COMPLETED",
-        subtotal=subtotal,
-        discount=data.discount,
-        tax=data.tax,
-        total=total,
-        payment_method=data.payment_method.upper(),
+       store_id=data.store_id,
+    user_id=current_user.id,
+    customer_id=data.customer_id,
+    sale_number=sale_number,
+    status="COMPLETED",
+    subtotal=subtotal,
+    discount=data.discount,
+    tax=data.tax,
+    total=total,
+    payment_method=data.payment_method.upper(),
     )
 
     db.add(sale)
