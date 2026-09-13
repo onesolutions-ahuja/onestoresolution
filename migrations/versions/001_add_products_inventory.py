@@ -1,7 +1,7 @@
 """add products categories and inventory
 
 Revision ID: 001_products_inventory
-Revises:
+Revises: 001_initial_schema
 Create Date: 2026-09-13
 """
 
@@ -11,8 +11,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = "001_products_inventory"
-down_revision: Union[str, Sequence[str], None] = None
+revision: str = "002_products_inventory"
+down_revision: Union[str, Sequence[str], None] = "001_initial_schema"
 branch_labels = None
 depends_on = None
 
