@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 
 from app.database import engine
 
@@ -35,4 +35,13 @@ def database_test():
     return {
         "database": "connected",
         "test": value,
+    }
+
+
+@app.get("/database-tables")
+def database_tables():
+    inspector = inspect(engine)
+
+    return {
+        "tables": inspector.get_table_names()
     }
