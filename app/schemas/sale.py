@@ -12,6 +12,7 @@ class SaleItemCreate(BaseModel):
 
 class SaleCreate(BaseModel):
     store_id: int
+    customer_id: int | None = None
     payment_method: str
     discount: Decimal = Field(default=0, ge=0)
     tax: Decimal = Field(default=0, ge=0)
