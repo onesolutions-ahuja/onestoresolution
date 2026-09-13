@@ -9,8 +9,9 @@ from app.models.sale import Sale, SaleItem
 from app.models.product import Product
 from app.models.inventory import Inventory
 from app.models.store import Store
+from app.models.customer import Customer
 from app.schemas.sale import SaleCreate
-from app.security.dependencies  import get_current_user
+from app.security.dependencies import get_current_user
 
 
 router = APIRouter(
@@ -43,7 +44,11 @@ def create_sale(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    if not check_store_access(db, current_user, data.store_id):
+    if not check_store_access(
+        db,
+        current_user,
+        data.store_id,
+    ):
         raise HTTPException(
             status_code=403,
             detail="You do not have access to this store",
@@ -58,6 +63,26 @@ def create_sale(
             status_code=404,
             detail="Store not found",
         )
+
+    # ---------------------------------------------------------
+    # CUSTOMER VALIDATION
+    # ---------------------------------------------------------
+
+    if data.customer_id is not None:
+        customer = db.query(Customer).filter(
+            Customer.id == data.customer_id,
+            Customer.is_active == True,
+        ).first()
+
+        if not customer:
+            raise HTTPException(
+                status_code=404,
+                detail="Customer not found",
+            )
+
+    # ---------------------------------------------------------
+    # SALE ITEMS
+    # ---------------------------------------------------------
 
     if not data.items:
         raise HTTPException(
@@ -119,6 +144,10 @@ def create_sale(
             }
         )
 
+    # ---------------------------------------------------------
+    # TOTALS
+    # ---------------------------------------------------------
+
     if data.discount > subtotal:
         raise HTTPException(
             status_code=400,
@@ -129,21 +158,29 @@ def create_sale(
 
     sale_number = f"SALE-{uuid4().hex[:12].upper()}"
 
+    # ---------------------------------------------------------
+    # CREATE SALE
+    # ---------------------------------------------------------
+
     sale = Sale(
-       store_id=data.store_id,
-    user_id=current_user.id,
-    customer_id=data.customer_id,
-    sale_number=sale_number,
-    status="COMPLETED",
-    subtotal=subtotal,
-    discount=data.discount,
-    tax=data.tax,
-    total=total,
-    payment_method=data.payment_method.upper(),
+        store_id=data.store_id,
+        user_id=current_user.id,
+        customer_id=data.customer_id,
+        sale_number=sale_number,
+        status="COMPLETED",
+        subtotal=subtotal,
+        discount=data.discount,
+        tax=data.tax,
+        total=total,
+        payment_method=data.payment_method.upper(),
     )
 
     db.add(sale)
     db.flush()
+
+    # ---------------------------------------------------------
+    # CREATE SALE ITEMS + REDUCE INVENTORY
+    # ---------------------------------------------------------
 
     for item in prepared_items:
         sale_item = SaleItem(
@@ -167,6 +204,7 @@ def create_sale(
         "sale_id": sale.id,
         "sale_number": sale.sale_number,
         "store_id": sale.store_id,
+        "customer_id": sale.customer_id,
         "subtotal": sale.subtotal,
         "discount": sale.discount,
         "tax": sale.tax,
@@ -178,20 +216,28 @@ def create_sale(
 @router.get("/")
 def get_sales(
     store_id: int | None = None,
+    customer_id: int | None = None,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
     query = db.query(Sale)
+
+    # ---------------------------------------------------------
+    # STORE ACCESS
+    # ---------------------------------------------------------
 
     if is_owner(current_user):
         if store_id is not None:
             query = query.filter(
                 Sale.store_id == store_id
             )
+
     else:
         from app.models.user_store_access import UserStoreAccess
 
-        stores = db.query(UserStoreAccess.store_id).filter(
+        stores = db.query(
+            UserStoreAccess.store_id
+        ).filter(
             UserStoreAccess.user_id == current_user.id
         ).all()
 
@@ -210,6 +256,15 @@ def get_sales(
                     status_code=403,
                     detail="You do not have access to this store",
                 )
+
+    # ---------------------------------------------------------
+    # CUSTOMER FILTER
+    # ---------------------------------------------------------
+
+    if customer_id is not None:
+        query = query.filter(
+            Sale.customer_id == customer_id
+        )
 
     return query.order_by(
         Sale.created_at.desc()
@@ -250,6 +305,7 @@ def get_sale(
         "id": sale.id,
         "store_id": sale.store_id,
         "user_id": sale.user_id,
+        "customer_id": sale.customer_id,
         "sale_number": sale.sale_number,
         "status": sale.status,
         "subtotal": sale.subtotal,
