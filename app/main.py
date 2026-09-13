@@ -3,7 +3,7 @@ from sqlalchemy import inspect, text
 
 from app.database import engine
 from app.routes.auth import router as auth_router
-
+from app.routes.stores import router as stores_router
 
 app = FastAPI(
     title="OneStoreSolution",
@@ -12,6 +12,7 @@ app = FastAPI(
 )
 
 app.include_router(auth_router)
+app.include_router(stores_router)
 
 
 @app.get("/")
