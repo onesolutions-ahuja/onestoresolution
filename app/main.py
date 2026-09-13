@@ -26,6 +26,7 @@ from app.routes.payment_reports import router as payment_reports_router
 from app.routes.vat import router as vat_router
 from app.routes.till import router as till_router
 from app.routes.refunds import router as refunds_router
+from app.routes.checkout import router as checkout_router
 
 
 
@@ -59,6 +60,7 @@ app.include_router(payment_reports_router)
 app.include_router(vat_router)
 app.include_router(till_router)
 app.include_router(refunds_router)
+app.include_router(checkout_router)
 
 @app.get("/")
 def root():
