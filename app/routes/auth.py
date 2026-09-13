@@ -59,10 +59,17 @@ def login(
 @router.get("/me")
 def get_me(
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
+    role = (
+        db.query(Role)
+        .filter(Role.id == current_user.role_id)
+        .first()
+    )
+
     return {
         "id": current_user.id,
         "name": current_user.name,
         "email": current_user.email,
-        "role_id": current_user.role_id,
+        "role": role.name if role else None,
     }
