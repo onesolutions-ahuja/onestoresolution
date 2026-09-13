@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.models.customer import Customer
 from app.models.inventory import Inventory
 from app.models.product import Product
 from app.models.sale import Sale, SaleItem
@@ -34,9 +35,20 @@ def checkout(
             detail="Invalid payment method",
         )
 
+    if data.customer_id is not None:
+        customer = db.query(Customer).filter(
+            Customer.id == data.customer_id,
+            Customer.is_active == True,
+        ).first()
+
+        if not customer:
+            raise HTTPException(
+                status_code=404,
+                detail="Customer not found",
+            )
+
     subtotal = Decimal("0")
     sale_items = []
-    inventory_updates = []
 
     for item in data.items:
         product = db.query(Product).filter(
@@ -108,10 +120,13 @@ def checkout(
 
     total = taxable_amount + tax
 
-    sale_number = f"SALE-{current_user.id}-{db.query(Sale).count() + 1}"
+    sale_number = (
+        f"SALE-{current_user.id}-{db.query(Sale).count() + 1}"
+    )
 
     sale = Sale(
         store_id=data.store_id,
+        customer_id=data.customer_id,
         user_id=current_user.id,
         sale_number=sale_number,
         status="COMPLETED",
@@ -162,6 +177,7 @@ def checkout(
         "message": "Sale completed successfully",
         "sale_id": sale.id,
         "sale_number": sale.sale_number,
+        "customer_id": sale.customer_id,
         "subtotal": sale.subtotal,
         "discount": sale.discount,
         "tax": sale.tax,
