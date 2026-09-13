@@ -20,6 +20,7 @@ from app.routes.stock_adjustments import router as stock_adjustments_router
 from app.routes.stock_levels import router as stock_levels_router
 from app.routes.low_stock import router as low_stock_router
 from app.routes.stock_transfer import router as stock_transfer_router
+from app.routes.dashboard import router as dashboard_router
 
 
 app = FastAPI(
@@ -46,6 +47,7 @@ app.include_router(stock_adjustments_router)
 app.include_router(stock_levels_router)
 app.include_router(low_stock_router)
 app.include_router(stock_transfer_router)
+app.include_router(dashboard_router)
 
 @app.get("/")
 def root():
