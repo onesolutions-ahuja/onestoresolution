@@ -4,5 +4,6 @@ SQLAlchemy
 psycopg2-binary
 alembic
 bcrypt
+passlib
 python-jose[cryptography]
 email-validator
