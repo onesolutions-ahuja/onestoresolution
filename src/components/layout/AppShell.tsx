@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { cn } from '@/lib/utils';
 
 export default function AppShell() {
