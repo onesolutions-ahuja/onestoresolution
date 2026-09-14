@@ -427,4 +427,282 @@ export default function SettingsPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold te
+        <h1 className="text-2xl font-bold text-slate-900">
+          Settings
+        </h1>
+
+        <div className="flex items-center space-x-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleResetToDefaults}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Reset to Defaults
+          </Button>
+
+          <Button
+            onClick={handleSaveAllChanges}
+            disabled={isLoading}
+            className="px-4 py-2 bg-[#0176D3] hover:bg-[#0176D3]/90 text-white"
+          >
+            {isApiUrlChanged ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="mr-2 h-4 w-4" />
+                Save All Changes
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="mb-4">
+        <div className="flex items-center space-x-4 flex-wrap gap-y-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab('all')}
+            className={cn(
+              'px-4 py-2 text-sm font-medium rounded',
+              activeTab === 'all'
+                ? 'text-white bg-[#0176D3]'
+                : 'text-slate-600 hover:bg-[#F1F5F9]'
+            )}
+          >
+            All Settings
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('general')}
+            className={cn(
+              'px-4 py-2 text-sm font-medium rounded',
+              activeTab === 'general'
+                ? 'text-white bg-[#0176D3]'
+                : 'text-slate-600 hover:bg-[#F1F5F9]'
+            )}
+          >
+            General
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('store')}
+            className={cn(
+              'px-4 py-2 text-sm font-medium rounded',
+              activeTab === 'store'
+                ? 'text-white bg-[#0176D3]'
+                : 'text-slate-600 hover:bg-[#F1F5F9]'
+            )}
+          >
+            Store
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('users')}
+            className={cn(
+              'px-4 py-2 text-sm font-medium rounded',
+              activeTab === 'users'
+                ? 'text-white bg-[#0176D3]'
+                : 'text-slate-600 hover:bg-[#F1F5F9]'
+            )}
+          >
+            Users
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              setActiveTab('notifications')
+            }
+            className={cn(
+              'px-4 py-2 text-sm font-medium rounded',
+              activeTab === 'notifications'
+                ? 'text-white bg-[#0176D3]'
+                : 'text-slate-600 hover:bg-[#F1F5F9]'
+            )}
+          >
+            Notifications
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('system')}
+            className={cn(
+              'px-4 py-2 text-sm font-medium rounded',
+              activeTab === 'system'
+                ? 'text-white bg-[#0176D3]'
+                : 'text-slate-600 hover:bg-[#F1F5F9]'
+            )}
+          >
+            System
+          </button>
+        </div>
+      </div>
+
+      {/* Settings Form */}
+      <Card>
+        <CardHeader className="pb-4">
+          <h2 className="text-lg font-medium text-slate-900">
+            {activeTab === 'all'
+              ? 'All Settings'
+              : `${activeTab.charAt(0).toUpperCase()}${activeTab.slice(
+                  1
+                )} Settings`}
+          </h2>
+        </CardHeader>
+
+        <CardContent>
+          {isLoading && settings.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 border-4 border-[#0176D3] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+              <p className="text-slate-600">
+                Loading settings...
+              </p>
+            </div>
+          ) : filteredSettings.length === 0 ? (
+            <div className="text-center py-12 text-slate-500">
+              No settings found for the selected category
+            </div>
+          ) : (
+            <form
+              onSubmit={(e) => e.preventDefault()}
+              className="space-y-6"
+            >
+              {filteredSettings.map((setting) => (
+                <div
+                  key={setting.id}
+                  className="border border-[#E2E8F0] rounded-lg p-4"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex-1">
+                      <h3 className="font-medium text-slate-900">
+                        {setting.name}
+                      </h3>
+
+                      <p className="text-sm text-slate-600">
+                        {setting.description}
+                      </p>
+                    </div>
+
+                    {setting.type === 'boolean' && (
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          checked={Boolean(
+                            setting.value
+                          )}
+                          onCheckedChange={(checked) =>
+                            handleSettingChange(
+                              setting.id,
+                              checked
+                            )
+                          }
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {setting.type === 'text' && (
+                    <Input
+                      type="text"
+                      placeholder={`Enter ${setting.name.toLowerCase()}...`}
+                      value={setting.value ?? ''}
+                      onChange={(e) =>
+                        handleSettingChange(
+                          setting.id,
+                          e.target.value
+                        )
+                      }
+                      className="w-full"
+                    />
+                  )}
+
+                  {setting.type === 'number' && (
+                    <Input
+                      type="number"
+                      placeholder={`Enter ${setting.name.toLowerCase()}...`}
+                      value={
+                        setting.value !== null &&
+                        setting.value !== undefined
+                          ? setting.value
+                          : ''
+                      }
+                      onChange={(e) =>
+                        handleSettingChange(
+                          setting.id,
+                          e.target.value === ''
+                            ? null
+                            : Number(e.target.value)
+                        )
+                      }
+                      className="w-full"
+                    />
+                  )}
+
+                  {setting.type === 'select' && (
+                    <Select
+                      value={String(
+                        setting.value ?? ''
+                      )}
+                      onValueChange={(value) =>
+                        handleSettingChange(
+                          setting.id,
+                          value
+                        )
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue
+                          placeholder={`Select ${setting.name.toLowerCase()}...`}
+                        />
+                      </SelectTrigger>
+
+                      <SelectContent>
+                        {setting.options?.map(
+                          (option) => (
+                            <SelectItem
+                              key={option}
+                              value={option}
+                            >
+                              {option}
+                            </SelectItem>
+                          )
+                        )}
+                      </SelectContent>
+                    </Select>
+                  )}
+
+                  {setting.type === 'textarea' && (
+                    <Textarea
+                      placeholder={`Enter ${setting.name.toLowerCase()}...`}
+                      value={setting.value ?? ''}
+                      onChange={(e) =>
+                        handleSettingChange(
+                          setting.id,
+                          e.target.value
+                        )
+                      }
+                      className="w-full"
+                    />
+                  )}
+                </div>
+              ))}
+            </form>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function cn(...classes: string[]): string {
+  return classes
+    .filter(Boolean)
+    .join(' ');
+}
