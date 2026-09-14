@@ -5,6 +5,7 @@ import React, {
   useEffect,
   ReactNode,
 } from 'react';
+
 import { api } from '@/lib/api';
 
 interface User {
@@ -17,27 +18,43 @@ interface User {
   is_active?: boolean;
 }
 
+interface LoginResponse {
+  access_token: string;
+  token_type: string;
+}
+
 interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+
   login: (
     email: string,
     password: string,
     remember?: boolean
-  ) => Promise<{ success: boolean; error?: string }>;
+  ) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType | undefined>(
+  undefined
+);
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
   'https://onestoresolution-api.onrender.com';
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -45,42 +62,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isAuthenticated = !!token && !!user;
 
   // ---------------------------------------------------------
-  // INITIALIZE AUTHENTICATION
+  // Initialize authentication
   // ---------------------------------------------------------
+
   useEffect(() => {
     const initAuth = () => {
       try {
-        // Check localStorage first (Remember Me)
-        let storedToken = localStorage.getItem('accessToken');
-        let storedUser = localStorage.getItem('user');
+        const storedToken =
+          localStorage.getItem('accessToken') ||
+          sessionStorage.getItem('accessToken');
 
-        // If not found, check sessionStorage
-        if (!storedToken) {
-          storedToken = sessionStorage.getItem('accessToken');
-        }
-
-        if (!storedUser) {
-          storedUser = sessionStorage.getItem('user');
-        }
+        const storedUser =
+          localStorage.getItem('user') ||
+          sessionStorage.getItem('user');
 
         if (storedToken && storedUser) {
-          try {
-            const parsedUser = JSON.parse(storedUser);
+          const parsedUser = JSON.parse(storedUser);
 
-            setToken(storedToken);
-            setUser(parsedUser);
-          } catch (error) {
-            console.error('Failed to parse stored user:', error);
-
-            localStorage.removeItem('accessToken');
-            localStorage.removeItem('user');
-
-            sessionStorage.removeItem('accessToken');
-            sessionStorage.removeItem('user');
-          }
+          setToken(storedToken);
+          setUser(parsedUser);
         }
       } catch (error) {
-        console.error('Failed to initialize authentication:', error);
+        console.error('Failed to restore authentication:', error);
+
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('user');
+
+        sessionStorage.removeItem('accessToken');
+        sessionStorage.removeItem('user');
+
+        setToken(null);
+        setUser(null);
       } finally {
         setIsLoading(false);
       }
@@ -90,64 +102,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // ---------------------------------------------------------
-  // REFRESH USER
+  // Login
   // ---------------------------------------------------------
-  const refreshUser = async () => {
-    if (!token) {
-      return;
-    }
 
-    try {
-      const response = await api.get<User>('/auth/me');
-
-      if (response.data && !response.error) {
-        const userData = response.data;
-
-        setUser(userData);
-
-        // Update whichever storage currently contains the user
-        if (localStorage.getItem('accessToken')) {
-          localStorage.setItem('user', JSON.stringify(userData));
-        }
-
-        if (sessionStorage.getItem('accessToken')) {
-          sessionStorage.setItem('user', JSON.stringify(userData));
-        }
-      } else {
-        console.error('Failed to refresh user:', response.error);
-
-        if (response.error === 'Session expired') {
-          logout();
-        }
-      }
-    } catch (error) {
-      console.error('Failed to refresh user:', error);
-      logout();
-    }
-  };
-
-  // ---------------------------------------------------------
-  // LOGIN
-  // ---------------------------------------------------------
   const login = async (
     email: string,
     password: string,
     remember = false
-  ): Promise<{ success: boolean; error?: string }> => {
+  ): Promise<{
+    success: boolean;
+    error?: string;
+  }> => {
     try {
-      if (!email.trim()) {
+      const cleanEmail = email.trim();
+
+      if (!cleanEmail) {
         return {
           success: false,
-          error: 'Please enter your email address',
+          error: 'Please enter your email address.',
         };
       }
 
       if (!password) {
         return {
           success: false,
-          error: 'Please enter your password',
+          error: 'Please enter your password.',
         };
       }
+
+      console.log('Attempting login:', cleanEmail);
 
       // -----------------------------------------------------
       // IMPORTANT:
@@ -159,38 +142,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // }
       // -----------------------------------------------------
 
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: email.trim(),
-          password: password,
-        }),
-      });
+      const loginResponse = await fetch(
+        `${API_BASE_URL}/auth/login`,
+        {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: cleanEmail,
+            password,
+          }),
+        }
+      );
 
-      // -----------------------------------------------------
-      // HANDLE API ERROR
-      // -----------------------------------------------------
-
-      if (!response.ok) {
-        let errorMessage = 'Login failed';
+      if (!loginResponse.ok) {
+        let errorMessage = 'Invalid email or password.';
 
         try {
-          const errorData = await response.json();
+          const errorData = await loginResponse.json();
 
-          if (typeof errorData.detail === 'string') {
-            errorMessage = errorData.detail;
-          } else if (Array.isArray(errorData.detail)) {
-            errorMessage = errorData.detail
-              .map((item: any) => item.msg || 'Invalid request')
-              .join(', ');
-          }
+          errorMessage =
+            errorData?.detail ||
+            errorData?.message ||
+            errorMessage;
         } catch {
-          errorMessage = `Login failed (${response.status})`;
+          // Keep default error message
         }
+
+        console.error(
+          'Login failed:',
+          loginResponse.status,
+          errorMessage
+        );
 
         return {
           success: false,
@@ -198,101 +183,185 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         };
       }
 
-      // -----------------------------------------------------
-      // READ TOKEN
-      // -----------------------------------------------------
+      const loginData =
+        (await loginResponse.json()) as LoginResponse;
 
-      const data = await response.json();
-
-      const accessToken = data.access_token;
-
-      if (!accessToken) {
+      if (!loginData.access_token) {
         return {
           success: false,
-          error: 'Login succeeded but no access token was returned',
+          error: 'Login succeeded but no access token was returned.',
         };
       }
 
+      const accessToken = loginData.access_token;
+
+      console.log('Login successful, token received.');
+
       // -----------------------------------------------------
-      // TEMPORARILY STORE TOKEN
+      // Clear old authentication first
+      // -----------------------------------------------------
+
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('user');
+
+      sessionStorage.removeItem('accessToken');
+      sessionStorage.removeItem('user');
+
+      // -----------------------------------------------------
+      // Store token
       // -----------------------------------------------------
 
       if (remember) {
-        localStorage.setItem('accessToken', accessToken);
-
-        // Remove old session token
-        sessionStorage.removeItem('accessToken');
-        sessionStorage.removeItem('user');
+        localStorage.setItem(
+          'accessToken',
+          accessToken
+        );
       } else {
-        sessionStorage.setItem('accessToken', accessToken);
-
-        // Remove old persistent token
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('user');
+        sessionStorage.setItem(
+          'accessToken',
+          accessToken
+        );
       }
 
-      // Set token immediately so api.get can authenticate
-      setToken(accessToken);
-
       // -----------------------------------------------------
-      // FETCH CURRENT USER
+      // Fetch logged-in user
+      //
+      // api.ts now checks BOTH localStorage and sessionStorage,
+      // so the Authorization header will be included.
       // -----------------------------------------------------
 
-      const userResponse = await api.get<User>('/auth/me');
+      const userResponse =
+        await api.get<User>('/auth/me');
 
-      if (userResponse.error || !userResponse.data) {
-        // Clean up invalid login
+      if (
+        userResponse.error ||
+        !userResponse.data
+      ) {
+        console.error(
+          'Failed to fetch user:',
+          userResponse.error
+        );
+
         localStorage.removeItem('accessToken');
         localStorage.removeItem('user');
 
         sessionStorage.removeItem('accessToken');
         sessionStorage.removeItem('user');
-
-        setToken(null);
-        setUser(null);
 
         return {
           success: false,
           error:
             userResponse.error ||
-            'Login succeeded, but failed to fetch user information',
+            'Login succeeded, but user information could not be loaded.',
         };
       }
 
-      // -----------------------------------------------------
-      // STORE USER
-      // -----------------------------------------------------
-
       const userData = userResponse.data;
 
+      // -----------------------------------------------------
+      // Update React state
+      // -----------------------------------------------------
+
+      setToken(accessToken);
       setUser(userData);
 
+      // -----------------------------------------------------
+      // Store user
+      // -----------------------------------------------------
+
       if (remember) {
-        localStorage.setItem('accessToken', accessToken);
-        localStorage.setItem('user', JSON.stringify(userData));
+        localStorage.setItem(
+          'accessToken',
+          accessToken
+        );
+
+        localStorage.setItem(
+          'user',
+          JSON.stringify(userData)
+        );
       } else {
-        sessionStorage.setItem('accessToken', accessToken);
-        sessionStorage.setItem('user', JSON.stringify(userData));
+        sessionStorage.setItem(
+          'accessToken',
+          accessToken
+        );
+
+        sessionStorage.setItem(
+          'user',
+          JSON.stringify(userData)
+        );
       }
 
       return {
         success: true,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Login error:', error);
 
       return {
         success: false,
         error:
-          error?.message ||
-          'Unable to connect to the OneStoreSolution API',
+          error instanceof Error
+            ? error.message
+            : 'Failed to connect to the server.',
       };
     }
   };
 
   // ---------------------------------------------------------
-  // LOGOUT
+  // Refresh user
   // ---------------------------------------------------------
+
+  const refreshUser = async () => {
+    const currentToken =
+      localStorage.getItem('accessToken') ||
+      sessionStorage.getItem('accessToken');
+
+    if (!currentToken) {
+      return;
+    }
+
+    try {
+      const response =
+        await api.get<User>('/auth/me');
+
+      if (
+        response.data &&
+        !response.error
+      ) {
+        setUser(response.data);
+
+        if (
+          localStorage.getItem('accessToken')
+        ) {
+          localStorage.setItem(
+            'user',
+            JSON.stringify(response.data)
+          );
+        } else {
+          sessionStorage.setItem(
+            'user',
+            JSON.stringify(response.data)
+          );
+        }
+      } else if (
+        response.error === 'Session expired'
+      ) {
+        logout();
+      }
+    } catch (error) {
+      console.error(
+        'Failed to refresh user:',
+        error
+      );
+
+      logout();
+    }
+  };
+
+  // ---------------------------------------------------------
+  // Logout
+  // ---------------------------------------------------------
+
   const logout = () => {
     setToken(null);
     setUser(null);
@@ -304,9 +373,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     sessionStorage.removeItem('user');
   };
 
-  // ---------------------------------------------------------
-  // CONTEXT PROVIDER
-  // ---------------------------------------------------------
   return (
     <AuthContext.Provider
       value={{
@@ -325,13 +391,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 // ---------------------------------------------------------
-// USE AUTH HOOK
+// useAuth hook
 // ---------------------------------------------------------
+
 export function useAuth() {
   const context = useContext(AuthContext);
 
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+  if (!context) {
+    throw new Error(
+      'useAuth must be used within an AuthProvider'
+    );
   }
 
   return context;
