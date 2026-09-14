@@ -26,15 +26,12 @@ export default function AppShell() {
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto p-6">
           {/* Breadcrumb */}
-          <div className="mb-4">
-            <Breadcrumb>
-              <Breadcrumb.Item>
-                <Breadcrumb.Link href="/dashboard">Dashboard</Breadcrumb.Link>
-              </Breadcrumb.Item>
-              {/* Dynamic breadcrumb would go here based on route */}
-            </Breadcrumb>
-          </div>
-
+          
+         <div className="mb-4">
+  <span className="text-sm text-slate-500">
+    Dashboard
+  </span>
+</div>
           {/* Page Content */}
           <Outlet />
         </main>
