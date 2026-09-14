@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import inspect, text
 
 from app.database import engine
@@ -31,12 +32,36 @@ from app.routes.pos import router as pos_router
 from app.routes.reports import router as reports_router
 
 
-
 app = FastAPI(
     title="OneStoreSolution",
     description="Multi-store retail management system",
     version="0.1.0",
 )
+
+
+# ---------------------------------------------------------
+# CORS CONFIGURATION
+# ---------------------------------------------------------
+# Allows the Vercel frontend to communicate with
+# the Render FastAPI backend.
+# ---------------------------------------------------------
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://onestoresolution.vercel.app",
+        "http://localhost:5173",
+        "http://localhost:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# ---------------------------------------------------------
+# API ROUTES
+# ---------------------------------------------------------
 
 app.include_router(auth_router)
 app.include_router(stores_router)
@@ -66,6 +91,11 @@ app.include_router(checkout_router)
 app.include_router(pos_router)
 app.include_router(reports_router)
 
+
+# ---------------------------------------------------------
+# ROOT
+# ---------------------------------------------------------
+
 @app.get("/")
 def root():
     return {
@@ -74,12 +104,20 @@ def root():
     }
 
 
+# ---------------------------------------------------------
+# HEALTH CHECK
+# ---------------------------------------------------------
+
 @app.get("/health")
 def health():
     return {
         "status": "healthy",
     }
 
+
+# ---------------------------------------------------------
+# DATABASE TEST
+# ---------------------------------------------------------
 
 @app.get("/database-test")
 def database_test():
@@ -92,6 +130,10 @@ def database_test():
         "test": value,
     }
 
+
+# ---------------------------------------------------------
+# DATABASE TABLES
+# ---------------------------------------------------------
 
 @app.get("/database-tables")
 def database_tables():
