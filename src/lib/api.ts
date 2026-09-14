@@ -1,7 +1,6 @@
-import { useNavigate } from 'react-router-dom';
-
-// Base URL - can be overridden by environment variable
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://onestoresolution-api.onrender.com';
+const BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  'https://onestoresolution-api.onrender.com';
 
 interface ApiResponse<T> {
   data: T;
@@ -9,76 +8,145 @@ interface ApiResponse<T> {
 }
 
 class ApiClient {
-  private navigate: ReturnType<typeof useNavigate>;
-
-  constructor() {
-    // We'll initialize navigate in the context of a component
-    // This is a limitation - we'll instead use a static method and handle navigation elsewhere
-    // For now, we'll throw errors and let components handle redirection
+  private getToken(): string | null {
+    // Check localStorage first, then sessionStorage
+    return (
+      localStorage.getItem('accessToken') ||
+      sessionStorage.getItem('accessToken')
+    );
   }
 
   private async request<T>(
     endpoint: string,
     method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
-    data?: any,
+    data?: unknown,
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
-    const token = localStorage.getItem('accessToken');
-    
+    const token = this.getToken();
+
     const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      Accept: 'application/json',
+      ...(data !== undefined
+        ? { 'Content-Type': 'application/json' }
+        : {}),
+      ...(token
+        ? { Authorization: `Bearer ${token}` }
+        : {}),
+      ...(options.headers || {}),
     };
 
     const config: RequestInit = {
-      method,
-      headers: {
-        ...headers,
-        ...(options.headers || {}),
-      },
-      body: data ? JSON.stringify(data) : undefined,
       ...options,
+      method,
+      headers,
     };
+
+    if (data !== undefined) {
+      config.body = JSON.stringify(data);
+    }
 
     try {
       const response = await fetch(`${BASE_URL}${endpoint}`, config);
-      
+
       if (response.status === 401) {
-        // Clear auth data and throw error for component to handle
         localStorage.removeItem('accessToken');
         localStorage.removeItem('user');
-        throw new Error('Session expired');
+        sessionStorage.removeItem('accessToken');
+        sessionStorage.removeItem('user');
+
+        return {
+          data: null as unknown as T,
+          error: 'Session expired',
+        };
+      }
+
+      const contentType = response.headers.get('content-type') || '';
+
+      let result: any = null;
+
+      if (contentType.includes('application/json')) {
+        result = await response.json();
+      } else {
+        const text = await response.text();
+        result = text ? { message: text } : null;
       }
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Request failed: ${response.status}`);
+        return {
+          data: null as unknown as T,
+          error:
+            result?.detail ||
+            result?.message ||
+            `Request failed: ${response.status}`,
+        };
       }
 
-      const result = await response.json();
-      return { data: result };
-    } catch (error: any) {
-      return { 
-        data: null as unknown as T, 
-        error: error.message || 'An unknown error occurred' 
+      return {
+        data: result as T,
+      };
+    } catch (error: unknown) {
+      console.error(`API request failed: ${method} ${endpoint}`, error);
+
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Failed to connect to the API';
+
+      return {
+        data: null as unknown as T,
+        error: message,
       };
     }
   }
 
-  get<T>(endpoint: string, options?: RequestInit): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, 'GET', undefined, options);
+  get<T>(
+    endpoint: string,
+    options?: RequestInit
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>(
+      endpoint,
+      'GET',
+      undefined,
+      options
+    );
   }
 
-  post<T>(endpoint: string, data: any, options?: RequestInit): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, 'POST', data, options);
+  post<T>(
+    endpoint: string,
+    data?: unknown,
+    options?: RequestInit
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>(
+      endpoint,
+      'POST',
+      data,
+      options
+    );
   }
 
-  put<T>(endpoint: string, data: any, options?: RequestInit): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, 'PUT', data, options);
+  put<T>(
+    endpoint: string,
+    data?: unknown,
+    options?: RequestInit
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>(
+      endpoint,
+      'PUT',
+      data,
+      options
+    );
   }
 
-  delete<T>(endpoint: string, options?: RequestInit): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, 'DELETE', undefined, options);
+  delete<T>(
+    endpoint: string,
+    options?: RequestInit
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>(
+      endpoint,
+      'DELETE',
+      undefined,
+      options
+    );
   }
 }
 
